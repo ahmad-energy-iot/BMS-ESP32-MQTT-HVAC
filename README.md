@@ -5,7 +5,7 @@ Deutsch · English
 Überblick
 Dieses praktische Gebäudeautomationsprojekt verbindet reale Temperatur- und Feuchtemessung mit einer BMS-/HVAC-Steuerung in Node-RED. Ein ESP32 liest einen DHT11 aus und überträgt die Messwerte per MQTT an einen Raspberry Pi. Node-RED verarbeitet die Daten, berechnet den Kühlbedarf und sendet Befehle für einen realen Lüfter über ein Relais sowie für eine LED, die ein Kühlventil repräsentiert.
 Das Projekt baut auf Mini-BMS-HVAC-Automation auf. Es wird als eigenständiges Praxisprojekt dokumentiert, weil es den bisherigen Modbus-Simulationsaufbau um reale Sensorik, MQTT-Kommunikation, ESP32-Ausgänge, Feuchtevisualisierung, Alarmhistorie und Energieabschätzung erweitert.
-Es handelt sich um einen Lern- und Demonstrationsaufbau, nicht um eine freigegebene Steuerung für eine produktive HVAC-Anlage.
+
 Hauptfunktionen
 - Reale Temperatur- und Feuchtemessung mit DHT11 und ESP32.
 - MQTT-Messwertübertragung im Abstand von etwa zwei Sekunden.
@@ -250,10 +250,10 @@ Mögliche Erweiterungen
 Ziel des Projekts
 Der Aufbau vermittelt praktische Erfahrung in Sensorintegration, MQTT und Modbus, Regelungslogik, Zustandsverwaltung, Command/Feedback-Trennung, Alarmmanagement, persistenter Speicherung und Visualisierung. Für die Präsentation des Projekts werden reale Funktionen, Simulationen und rechnerische Annahmen ausdrücklich getrennt beschrieben.
 🇬🇧 English
+
 Overview
 This practical building automation project combines real temperature and humidity sensing with BMS/HVAC control in Node-RED. An ESP32 reads a DHT11 and publishes measurements through MQTT to a Raspberry Pi. Node-RED processes the data, calculates cooling demand and sends commands for a real relay-controlled fan and an LED representing a cooling valve.
 The project builds on Mini-BMS-HVAC-Automation. It is documented as a separate practical project because it extends the earlier Modbus simulation with real sensing, MQTT communication, ESP32 outputs, humidity visualization, alarm history and an energy estimate.
-This is a learning and demonstration setup, not an approved controller for a production HVAC installation.
 Main Features
 - Real temperature and humidity measurement with DHT11 and ESP32.
 - MQTT measurements approximately every two seconds.
