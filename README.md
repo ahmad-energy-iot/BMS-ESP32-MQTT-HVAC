@@ -588,3 +588,45 @@ Possible extensions:
 - Electrical energy metering.
 - Extended alarm history.
 - Additional dashboard design.
+
+- ## Project Screenshots and Video
+
+### Dashboard – Cooling Operation
+
+The fan command and simulated fan feedback are ON. The cooling valve represented by an LED is enabled.
+
+![Dashboard during cooling operation](images/dashboard-cooling-on.png)
+
+### Dashboard – Alarm Test
+
+The fan command is ON while simulated fan feedback is OFF. The alarm is active and appears in the alarm history.
+
+![Active fan alarm](images/dashboard-alarm.png)
+
+### Dashboard – Command OFF
+
+The fan command is OFF and the valve is closed. Simulated fan feedback remains ON in this screenshot.
+
+![Dashboard with fan command OFF](images/dashboard-off.png)
+
+### Hardware
+
+Physical ESP32 setup with a DHT11 sensor, relay, 5 V fan, and an LED representing the cooling valve.
+
+![Hardware with valve LED ON](images/hardware-on.jpg)
+
+[View hardware with valve LED OFF](images/hardware-off.jpg)
+
+### Node-RED Flow and ESP32 Test Logs
+
+[View the Node-RED flow](images/node-red-flow.png)
+
+[ESP32: ON commands at 24 °C](images/esp32-command-on.png)
+
+[ESP32: OFF commands at 22 °C](images/esp32-command-off.png)
+
+### Hardware Demonstration Video
+
+[▶ Watch the hardware demonstration](videos/Add%20hardware%20demonstration%20video.mp4)
+
+The green LED represents a cooling valve. Fan feedback is simulated in Node-RED.
