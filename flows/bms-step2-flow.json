@@ -1,0 +1,1990 @@
+[
+    {
+        "id": "c4ded3a41725e619",
+        "type": "tab",
+        "label": "BMS Step2",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "b79921f72bce54d9",
+        "type": "inject",
+        "z": "c4ded3a41725e619",
+        "name": "Raw Temperature 246",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "246",
+        "payloadType": "num",
+        "x": 160,
+        "y": 20,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "26216fd61e38e7cf",
+        "type": "function",
+        "z": "c4ded3a41725e619",
+        "name": "Prepare MQTT Temperature",
+        "func": "if (typeof msg.payload !== \"number\" ||\n    !Number.isFinite(msg.payload)) {\n    node.warn(\"Invalid temperature\");\n    return null;\n}\n\nmsg.topic = \"Temperature Istwert\";\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 420,
+        "y": 180,
+        "wires": [
+            [
+                "b55ca072c9b6d338",
+                "408f1d483eb5be25",
+                "25ad8d90ee641936",
+                "0aaa5ff431162096"
+            ]
+        ]
+    },
+    {
+        "id": "f9cb1e6faba25aad",
+        "type": "debug",
+        "z": "c4ded3a41725e619",
+        "name": "debug 8",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1620,
+        "y": 160,
+        "wires": []
+    },
+    {
+        "id": "b55ca072c9b6d338",
+        "type": "function",
+        "z": "c4ded3a41725e619",
+        "name": "Cooling Hysteresis",
+        "func": "let temperature = msg.payload;\n\nlet setpoint = flow.get(\"setpoint\");\nlet coolingState = flow.get(\"coolingState\");\n\nif (setpoint === undefined) {\n    setpoint = 23;\n}\n\nif (coolingState === undefined) {\n    coolingState = false;\n}\n\nlet onThreshold = setpoint + 1;\nlet offThreshold = setpoint - 1;\n\nif (temperature >= onThreshold) {\n    coolingState = true;\n}\n\nif (temperature <= offThreshold) {\n    coolingState = false;\n}\n\nflow.set(\"coolingState\", coolingState);\n\nmsg.setpoint = setpoint;\nmsg.onThreshold = onThreshold;\nmsg.offThreshold = offThreshold;\nmsg.coolingDemand = coolingState;\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 670,
+        "y": 160,
+        "wires": [
+            [
+                "3e3369d1f176a147"
+            ]
+        ]
+    },
+    {
+        "id": "3e3369d1f176a147",
+        "type": "function",
+        "z": "c4ded3a41725e619",
+        "name": "Fan Alarm Logic",
+        "func": "let autoMode = flow.get(\"autoMode\");\nlet manualFanCommand = flow.get(\"manualFanCommand\");\nlet fanFeedback = flow.get(\"fanFeedback\");\n\nif (autoMode === undefined) {\n    autoMode = true;\n}\n\nif (manualFanCommand === undefined) {\n    manualFanCommand = false;\n}\n\nif (fanFeedback === undefined) {\n    fanFeedback = false;\n}\n\n// Existing operating-mode logic\nconst dataTimeout = msg.dataTimeout === true;\n\nif (autoMode === true) {\n    msg.operationMode = \"AUTO\";\n\n    if (dataTimeout) {\n        msg.fanCommand = false;\n    } else {\n        msg.fanCommand = msg.coolingDemand === true;\n    }\n\n} else {\n    msg.operationMode = \"MANUAL\";\n    msg.fanCommand = manualFanCommand === true;\n}\n\nmsg.fanFeedback = fanFeedback;\n\n// Fan feedback monitoring\nconst feedbackDelayMs = 5000;\nconst now = Date.now();\n\nlet feedbackMissingSince = context.get(\"feedbackMissingSince\");\n\nif (msg.fanCommand === true && fanFeedback === false) {\n\n    // Start timing when missing feedback is first detected.\n    if (feedbackMissingSince === undefined) {\n        feedbackMissingSince = now;\n        context.set(\"feedbackMissingSince\", feedbackMissingSince);\n    }\n\n    const elapsedMs = now - feedbackMissingSince;\n\n    msg.fanStartPending = elapsedMs < feedbackDelayMs;\n\n    if (elapsedMs >= feedbackDelayMs) {\n        msg.alarm = true;\n        msg.alarmText = \"Fan fault: Command ON but no feedback\";\n\n    } else {\n        msg.alarm = false;\n        msg.alarmText = \"Waiting for fan feedback\";\n    }\n\n} else {\n    // Command OFF or feedback received: reset the monitoring.\n    context.set(\"feedbackMissingSince\", undefined);\n\n    msg.fanStartPending = false;\n    msg.alarm = false;\n    msg.alarmText = \"No alarm\";\n}\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1320,
+        "y": 160,
+        "wires": [
+            [
+                "1bd07bf338ab160a",
+                "2e9ff2819f5681b2",
+                "232e5e9ebfd46bb4",
+                "b7684515ec3f6710",
+                "f78475ab07c6f291",
+                "f9cb1e6faba25aad",
+                "f5c973b82d874d93",
+                "891daf16f2ea7a9d",
+                "9db9c2226f4a1e49"
+            ]
+        ]
+    },
+    {
+        "id": "ba5b874a699eab6e",
+        "type": "inject",
+        "z": "c4ded3a41725e619",
+        "name": "Fan Healthy",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "true",
+        "payloadType": "bool",
+        "x": 230,
+        "y": 320,
+        "wires": [
+            [
+                "f8cbd60e874b08c9"
+            ]
+        ]
+    },
+    {
+        "id": "66a28d3fe82fc532",
+        "type": "inject",
+        "z": "c4ded3a41725e619",
+        "name": "Fan Fault",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "false",
+        "payloadType": "bool",
+        "x": 220,
+        "y": 360,
+        "wires": [
+            [
+                "f8cbd60e874b08c9"
+            ]
+        ]
+    },
+    {
+        "id": "f8cbd60e874b08c9",
+        "type": "function",
+        "z": "c4ded3a41725e619",
+        "name": "Set Fan Status",
+        "func": "flow.set(\"fanHealthy\", msg.payload);\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 500,
+        "y": 340,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "6b226da66c924301",
+        "type": "inject",
+        "z": "c4ded3a41725e619",
+        "name": "AUTO Mode",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "true",
+        "payloadType": "bool",
+        "x": 230,
+        "y": 420,
+        "wires": [
+            [
+                "ecde0ddde9aa5999"
+            ]
+        ]
+    },
+    {
+        "id": "3959ea41f3cb4e4d",
+        "type": "inject",
+        "z": "c4ded3a41725e619",
+        "name": "MANUAL Mode",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "false",
+        "payloadType": "bool",
+        "x": 240,
+        "y": 460,
+        "wires": [
+            [
+                "ecde0ddde9aa5999"
+            ]
+        ]
+    },
+    {
+        "id": "ecde0ddde9aa5999",
+        "type": "function",
+        "z": "c4ded3a41725e619",
+        "name": "Set Operation Mode",
+        "func": "flow.set(\"autoMode\", msg.payload);\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 520,
+        "y": 440,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "20e2f418ce4e9382",
+        "type": "inject",
+        "z": "c4ded3a41725e619",
+        "name": "Manual Fan ON",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "true",
+        "payloadType": "bool",
+        "x": 240,
+        "y": 540,
+        "wires": [
+            [
+                "8ebd44cc9125c9e5"
+            ]
+        ]
+    },
+    {
+        "id": "cb75bc120590270b",
+        "type": "inject",
+        "z": "c4ded3a41725e619",
+        "name": "Manual Fan OFF",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "false",
+        "payloadType": "bool",
+        "x": 240,
+        "y": 600,
+        "wires": [
+            [
+                "8ebd44cc9125c9e5"
+            ]
+        ]
+    },
+    {
+        "id": "8ebd44cc9125c9e5",
+        "type": "function",
+        "z": "c4ded3a41725e619",
+        "name": "Set Manual Fan Command",
+        "func": "flow.set(\"manualFanCommand\", msg.payload);\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 540,
+        "y": 560,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "055640bb8c953e16",
+        "type": "inject",
+        "z": "c4ded3a41725e619",
+        "name": "Setpoint 23°C",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "5",
+        "topic": "",
+        "payload": "23",
+        "payloadType": "num",
+        "x": 240,
+        "y": 720,
+        "wires": [
+            [
+                "cf7d54d2a05cfb4b"
+            ]
+        ]
+    },
+    {
+        "id": "162a77b65b77b8e5",
+        "type": "function",
+        "z": "c4ded3a41725e619",
+        "name": "Set Temperature Setpoint",
+        "func": "flow.set(\"setpoint\", msg.payload);\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 530,
+        "y": 700,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "f25b7d9c4bc5705f",
+        "type": "modbus-server",
+        "z": "c4ded3a41725e619",
+        "name": "HVAC_Controller_Sim",
+        "logEnabled": false,
+        "hostname": "0.0.0.0",
+        "serverPort": 10502,
+        "responseDelay": 100,
+        "delayUnit": "ms",
+        "coilsBufferSize": "20",
+        "holdingBufferSize": "20",
+        "inputBufferSize": "20",
+        "discreteBufferSize": "20",
+        "showErrors": true,
+        "showStatusActivities": true,
+        "x": 860,
+        "y": 800,
+        "wires": [
+            [],
+            [],
+            [],
+            [],
+            []
+        ]
+    },
+    {
+        "id": "7ec3ba022dd074c5",
+        "type": "inject",
+        "z": "c4ded3a41725e619",
+        "name": "Set Sim Temperature",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 260,
+        "y": 940,
+        "wires": [
+            [
+                "2ce2c474c509e4ee"
+            ]
+        ]
+    },
+    {
+        "id": "2ce2c474c509e4ee",
+        "type": "function",
+        "z": "c4ded3a41725e619",
+        "name": "Write Sim Temperature",
+        "func": "msg.payload = {\n    value: 246,\n    register: \"input\",\n    address: 0,\n    disableMsgOutput: 0\n};\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 560,
+        "y": 940,
+        "wires": [
+            [
+                "f25b7d9c4bc5705f"
+            ]
+        ]
+    },
+    {
+        "id": "e69827e63196b566",
+        "type": "modbus-read",
+        "z": "c4ded3a41725e619",
+        "name": "Read Temperature Istwert",
+        "topic": "",
+        "showStatusActivities": false,
+        "logIOActivities": false,
+        "showErrors": false,
+        "showWarnings": true,
+        "unitid": "1",
+        "dataType": "InputRegister",
+        "adr": "0",
+        "quantity": "1",
+        "rate": "1",
+        "rateUnit": "s",
+        "delayOnStart": false,
+        "enableDeformedMessages": false,
+        "startDelayTime": "",
+        "server": "4d8ae1abaa27718c",
+        "useIOFile": false,
+        "ioFile": "",
+        "useIOForPayload": false,
+        "emptyMsgOnFail": false,
+        "x": 170,
+        "y": 80,
+        "wires": [
+            [
+                "dd120a5605fb3f66"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "dd120a5605fb3f66",
+        "type": "debug",
+        "z": "c4ded3a41725e619",
+        "name": "debug 9",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 400,
+        "y": 60,
+        "wires": []
+    },
+    {
+        "id": "92ba963c9770ee98",
+        "type": "modbus-write",
+        "z": "c4ded3a41725e619",
+        "name": "Write Temperature Setpoint",
+        "showStatusActivities": false,
+        "showErrors": false,
+        "showWarnings": true,
+        "unitid": "1",
+        "dataType": "HoldingRegister",
+        "adr": "0",
+        "quantity": "1",
+        "server": "4d8ae1abaa27718c",
+        "emptyMsgOnFail": false,
+        "keepMsgProperties": false,
+        "delayOnStart": false,
+        "startDelayTime": "",
+        "x": 840,
+        "y": 640,
+        "wires": [
+            [],
+            []
+        ]
+    },
+    {
+        "id": "cf7d54d2a05cfb4b",
+        "type": "function",
+        "z": "c4ded3a41725e619",
+        "name": "Scale Setpoint for Modbus",
+        "func": "msg.payload = msg.payload * 10;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 540,
+        "y": 640,
+        "wires": [
+            [
+                "92ba963c9770ee98"
+            ]
+        ]
+    },
+    {
+        "id": "e338b7a6ffae20fd",
+        "type": "modbus-read",
+        "z": "c4ded3a41725e619",
+        "name": "Read Temperature Setpoint",
+        "topic": "",
+        "showStatusActivities": false,
+        "logIOActivities": false,
+        "showErrors": false,
+        "showWarnings": true,
+        "unitid": "1",
+        "dataType": "HoldingRegister",
+        "adr": "0",
+        "quantity": "1",
+        "rate": "1",
+        "rateUnit": "s",
+        "delayOnStart": false,
+        "enableDeformedMessages": false,
+        "startDelayTime": "",
+        "server": "4d8ae1abaa27718c",
+        "useIOFile": false,
+        "ioFile": "",
+        "useIOForPayload": false,
+        "emptyMsgOnFail": false,
+        "x": 1100,
+        "y": 600,
+        "wires": [
+            [
+                "6ebb5c85b4bd76e7",
+                "7a80e8451f1fdd3b"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "6ebb5c85b4bd76e7",
+        "type": "debug",
+        "z": "c4ded3a41725e619",
+        "name": "debug 10",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1380,
+        "y": 600,
+        "wires": []
+    },
+    {
+        "id": "7a80e8451f1fdd3b",
+        "type": "function",
+        "z": "c4ded3a41725e619",
+        "name": "Scale Read Setpoint",
+        "func": "let setpoint = flow.get(\"setpoint\");\nif (setpoint === undefined || setpoint === 0) {\n    flow.set(\"setpoint\", 23);\n}\n\nif (!Array.isArray(msg.payload) || msg.payload.length === 0) {\n    return null;\n}\n\nconst rawValue = Number(msg.payload[0]);\nif (!Number.isFinite(rawValue) || rawValue === 0) {\n    return null;\n}\n\nmsg.payload = rawValue * 0.1;\nflow.set(\"setpoint\", msg.payload);\nmsg.topic = \"Setpoint\";\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1080,
+        "y": 540,
+        "wires": [
+            [
+                "af3f8488889c13ad",
+                "408f1d483eb5be25"
+            ]
+        ]
+    },
+    {
+        "id": "af3f8488889c13ad",
+        "type": "debug",
+        "z": "c4ded3a41725e619",
+        "name": "debug 11",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1320,
+        "y": 540,
+        "wires": []
+    },
+    {
+        "id": "b780d37aca1ca6d4",
+        "type": "modbus-write",
+        "z": "c4ded3a41725e619",
+        "name": "Write Fan Command",
+        "showStatusActivities": false,
+        "showErrors": false,
+        "showWarnings": true,
+        "unitid": "1",
+        "dataType": "Coil",
+        "adr": "0",
+        "quantity": "1",
+        "server": "4d8ae1abaa27718c",
+        "emptyMsgOnFail": false,
+        "keepMsgProperties": false,
+        "delayOnStart": false,
+        "startDelayTime": "",
+        "x": 1420,
+        "y": 360,
+        "wires": [
+            [],
+            []
+        ]
+    },
+    {
+        "id": "1bd07bf338ab160a",
+        "type": "function",
+        "z": "c4ded3a41725e619",
+        "name": "Prepare Fan Command",
+        "func": "msg.payload = msg.fanCommand;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1150,
+        "y": 360,
+        "wires": [
+            [
+                "b780d37aca1ca6d4"
+            ]
+        ]
+    },
+    {
+        "id": "d83bc1ceb99e543d",
+        "type": "modbus-read",
+        "z": "c4ded3a41725e619",
+        "name": "Read Fan Command",
+        "topic": "",
+        "showStatusActivities": false,
+        "logIOActivities": false,
+        "showErrors": false,
+        "showWarnings": true,
+        "unitid": "1",
+        "dataType": "Coil",
+        "adr": "0",
+        "quantity": "1",
+        "rate": "1",
+        "rateUnit": "s",
+        "delayOnStart": false,
+        "enableDeformedMessages": false,
+        "startDelayTime": "",
+        "server": "4d8ae1abaa27718c",
+        "useIOFile": false,
+        "ioFile": "",
+        "useIOForPayload": false,
+        "emptyMsgOnFail": false,
+        "x": 1170,
+        "y": 300,
+        "wires": [
+            [
+                "c7b5e2cc15a4b7a9"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "c7b5e2cc15a4b7a9",
+        "type": "debug",
+        "z": "c4ded3a41725e619",
+        "name": "debug 12",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1360,
+        "y": 300,
+        "wires": []
+    },
+    {
+        "id": "374216af3924db94",
+        "type": "inject",
+        "z": "c4ded3a41725e619",
+        "name": "Fan Feedback ON",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "true",
+        "payloadType": "bool",
+        "x": 870,
+        "y": 880,
+        "wires": [
+            [
+                "d91f10f0e29933bd"
+            ]
+        ]
+    },
+    {
+        "id": "aae3fed221ced7d4",
+        "type": "inject",
+        "z": "c4ded3a41725e619",
+        "name": "Fan Feedback OFF",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "false",
+        "payloadType": "bool",
+        "x": 870,
+        "y": 940,
+        "wires": [
+            [
+                "d91f10f0e29933bd"
+            ]
+        ]
+    },
+    {
+        "id": "d91f10f0e29933bd",
+        "type": "function",
+        "z": "c4ded3a41725e619",
+        "name": "Set Fan Feedback",
+        "func": "msg.payload = {\n    value: msg.payload,\n    register: \"discrete\",\n    address: 0,\n    disableMsgOutput: 0\n};\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1130,
+        "y": 900,
+        "wires": [
+            [
+                "f25b7d9c4bc5705f"
+            ]
+        ]
+    },
+    {
+        "id": "0e20a155e0760e87",
+        "type": "modbus-read",
+        "z": "c4ded3a41725e619",
+        "name": "Read Fan Feedback",
+        "topic": "",
+        "showStatusActivities": false,
+        "logIOActivities": false,
+        "showErrors": false,
+        "showWarnings": true,
+        "unitid": "1",
+        "dataType": "Input",
+        "adr": "0",
+        "quantity": "1",
+        "rate": "1",
+        "rateUnit": "s",
+        "delayOnStart": false,
+        "enableDeformedMessages": false,
+        "startDelayTime": "",
+        "server": "4d8ae1abaa27718c",
+        "useIOFile": false,
+        "ioFile": "",
+        "useIOForPayload": false,
+        "emptyMsgOnFail": false,
+        "x": 1110,
+        "y": 720,
+        "wires": [
+            [
+                "86f9fccdd8b0e294"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "550084ae409bd9f9",
+        "type": "debug",
+        "z": "c4ded3a41725e619",
+        "name": "debug 13",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1400,
+        "y": 740,
+        "wires": []
+    },
+    {
+        "id": "86f9fccdd8b0e294",
+        "type": "function",
+        "z": "c4ded3a41725e619",
+        "name": "Store Fan Feedback",
+        "func": "let feedback;\n\nif (Array.isArray(msg.payload)) {\n    feedback = msg.payload[0];\n} else {\n    feedback = msg.payload;\n}\n\nflow.set(\"fanFeedback\", feedback);\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1340,
+        "y": 680,
+        "wires": [
+            [
+                "550084ae409bd9f9"
+            ]
+        ]
+    },
+    {
+        "id": "4f06aca2ae423ae6",
+        "type": "ui-chart",
+        "z": "c4ded3a41725e619",
+        "group": "bb32eccd3d687711",
+        "name": "Temperature Trend",
+        "label": "Temperatur & Sollwert",
+        "order": 1,
+        "chartType": "line",
+        "category": "topic",
+        "categoryType": "msg",
+        "xAxisLabel": "",
+        "xAxisProperty": "",
+        "xAxisPropertyType": "timestamp",
+        "xAxisType": "time",
+        "xAxisFormat": "",
+        "xAxisFormatType": "auto",
+        "xmin": "",
+        "xmax": "",
+        "yAxisLabel": "",
+        "yAxisProperty": "payload",
+        "yAxisPropertyType": "msg",
+        "ymin": "15",
+        "ymax": "35",
+        "bins": 10,
+        "action": "append",
+        "stackSeries": false,
+        "pointShape": "circle",
+        "pointRadius": 4,
+        "showLegend": true,
+        "removeOlder": "10",
+        "removeOlderUnit": "60",
+        "removeOlderPoints": "",
+        "colors": [
+            "#0095ff",
+            "#ff0000",
+            "#ff7f0e",
+            "#2ca02c",
+            "#a347e1",
+            "#d62728",
+            "#ff9896",
+            "#9467bd",
+            "#c5b0d5"
+        ],
+        "textColor": [
+            "#666666"
+        ],
+        "textColorDefault": true,
+        "gridColor": [
+            "#e5e5e5"
+        ],
+        "gridColorDefault": true,
+        "width": 6,
+        "height": "6",
+        "className": "",
+        "interpolation": "linear",
+        "x": 1130,
+        "y": 460,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "408f1d483eb5be25",
+        "type": "function",
+        "z": "c4ded3a41725e619",
+        "name": "Chart: payload + topic only",
+        "func": "// Keep Modbus buffers and transport metadata out of chart history.\n// The control branches retain their original complete messages.\nreturn { payload: msg.payload, topic: msg.topic };",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 880,
+        "y": 460,
+        "wires": [
+            [
+                "4f06aca2ae423ae6"
+            ]
+        ]
+    },
+    {
+        "id": "be2dfc8ea95a0861",
+        "type": "ui-text",
+        "z": "c4ded3a41725e619",
+        "group": "bb32eccd3d687711",
+        "order": 6,
+        "width": 6,
+        "height": 0,
+        "name": "Fan Command Status",
+        "label": "Fan Command Status",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "style": false,
+        "font": "",
+        "fontSize": 16,
+        "color": "#717171",
+        "wrapText": false,
+        "className": "",
+        "value": "payload",
+        "valueType": "msg",
+        "x": 2060,
+        "y": 20,
+        "wires": []
+    },
+    {
+        "id": "2e9ff2819f5681b2",
+        "type": "function",
+        "z": "c4ded3a41725e619",
+        "name": "Fan Command to Text",
+        "func": "msg.payload = msg.fanCommand ? \"ON\" : \"OFF\";\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1640,
+        "y": 20,
+        "wires": [
+            [
+                "be2dfc8ea95a0861"
+            ]
+        ]
+    },
+    {
+        "id": "232e5e9ebfd46bb4",
+        "type": "function",
+        "z": "c4ded3a41725e619",
+        "name": "Fan Feedback to Text",
+        "func": "msg.payload = msg.fanFeedback ? \"ON\" : \"OFF\";\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1640,
+        "y": 260,
+        "wires": [
+            [
+                "c39a93c422b72370"
+            ]
+        ]
+    },
+    {
+        "id": "c39a93c422b72370",
+        "type": "ui-text",
+        "z": "c4ded3a41725e619",
+        "group": "bb32eccd3d687711",
+        "order": 5,
+        "width": 5,
+        "height": 0,
+        "name": "Fan Feedback Status",
+        "label": "Fan Feedback Status",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "style": false,
+        "font": "",
+        "fontSize": 16,
+        "color": "#717171",
+        "wrapText": false,
+        "className": "",
+        "value": "payload",
+        "valueType": "msg",
+        "x": 1840,
+        "y": 360,
+        "wires": []
+    },
+    {
+        "id": "b7684515ec3f6710",
+        "type": "function",
+        "z": "c4ded3a41725e619",
+        "name": "Alarm to Text",
+        "func": "if (msg.alarm === true) {\n    msg.payload = \"ALARM - Fan fault\";\n} else {\n    msg.payload = \"No alarm\";\n}\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1610,
+        "y": 80,
+        "wires": [
+            [
+                "b5f8dae4e0686ba0"
+            ]
+        ]
+    },
+    {
+        "id": "b5f8dae4e0686ba0",
+        "type": "ui-text",
+        "z": "c4ded3a41725e619",
+        "group": "bb32eccd3d687711",
+        "order": 9,
+        "width": 6,
+        "height": 0,
+        "name": "Alarm Status",
+        "label": "Alarm Status",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "style": false,
+        "font": "",
+        "fontSize": 16,
+        "color": "#717171",
+        "wrapText": false,
+        "className": "",
+        "value": "payload",
+        "valueType": "msg",
+        "x": 1830,
+        "y": 80,
+        "wires": []
+    },
+    {
+        "id": "0aaa5ff431162096",
+        "type": "trigger",
+        "z": "c4ded3a41725e619",
+        "name": "Temp-Timeout-Warnung",
+        "op1": "",
+        "op2": "WARNUNG Keine Temperaturdaten",
+        "op1type": "nul",
+        "op2type": "str",
+        "duration": "5",
+        "extend": true,
+        "overrideDelay": false,
+        "units": "s",
+        "reset": "",
+        "bytopic": "all",
+        "topic": "topic",
+        "outputs": 1,
+        "x": 630,
+        "y": 60,
+        "wires": [
+            [
+                "58abcbe86acb5c3c",
+                "4d0587e5a72fdfd5",
+                "8dea3a536ef631cd"
+            ]
+        ]
+    },
+    {
+        "id": "58abcbe86acb5c3c",
+        "type": "debug",
+        "z": "c4ded3a41725e619",
+        "name": "debug 14",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 860,
+        "y": 20,
+        "wires": []
+    },
+    {
+        "id": "4d0587e5a72fdfd5",
+        "type": "ui-text",
+        "z": "c4ded3a41725e619",
+        "group": "bb32eccd3d687711",
+        "order": 4,
+        "width": "5",
+        "height": "1",
+        "name": "Temperaturdaten-Status",
+        "label": "Temperaturdaten-Status",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "style": false,
+        "font": "",
+        "fontSize": 16,
+        "color": "#717171",
+        "wrapText": false,
+        "className": "",
+        "value": "payload",
+        "valueType": "msg",
+        "x": 890,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "8ebb449b37045f6c",
+        "type": "inject",
+        "z": "c4ded3a41725e619",
+        "name": "Init Temperature Watchdog",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.1,
+        "topic": "Temperature Istwert",
+        "payload": "Warte auf Temperaturdaten",
+        "payloadType": "str",
+        "x": 380,
+        "y": 240,
+        "wires": [
+            [
+                "0aaa5ff431162096"
+            ]
+        ]
+    },
+    {
+        "id": "25ad8d90ee641936",
+        "type": "change",
+        "z": "c4ded3a41725e619",
+        "name": "",
+        "rules": [
+            {
+                "t": "set",
+                "p": "payload",
+                "pt": "msg",
+                "to": "Temperaturdaten OK",
+                "tot": "str"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 710,
+        "y": 240,
+        "wires": [
+            [
+                "4d0587e5a72fdfd5"
+            ]
+        ]
+    },
+    {
+        "id": "7ad1efc534442f85",
+        "type": "mqtt in",
+        "z": "c4ded3a41725e619",
+        "name": "",
+        "topic": "bms/room1/temperature",
+        "qos": "2",
+        "datatype": "auto-detect",
+        "broker": "b59e16e034cb5575",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 120,
+        "y": 180,
+        "wires": [
+            [
+                "c0d7ead899041ea3",
+                "26216fd61e38e7cf"
+            ]
+        ]
+    },
+    {
+        "id": "c0d7ead899041ea3",
+        "type": "debug",
+        "z": "c4ded3a41725e619",
+        "name": "debug 15",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 100,
+        "y": 260,
+        "wires": []
+    },
+    {
+        "id": "8dea3a536ef631cd",
+        "type": "change",
+        "z": "c4ded3a41725e619",
+        "name": "Mark Temperature Timeout",
+        "rules": [
+            {
+                "t": "set",
+                "p": "dataTimeout",
+                "pt": "msg",
+                "to": "true",
+                "tot": "bool"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 1080,
+        "y": 60,
+        "wires": [
+            [
+                "3e3369d1f176a147"
+            ]
+        ]
+    },
+    {
+        "id": "f78475ab07c6f291",
+        "type": "function",
+        "z": "c4ded3a41725e619",
+        "name": "Prepare MQTT Fan Command",
+        "func": "// Convert the fan command to an MQTT message\nmsg.payload = msg.fanCommand === true ? \"ON\" : \"OFF\";\nmsg.topic = \"bms/room1/fan/command\";\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1870,
+        "y": 120,
+        "wires": [
+            [
+                "4a6a12563b8c81bf",
+                "8055184adf3246f9"
+            ]
+        ]
+    },
+    {
+        "id": "4a6a12563b8c81bf",
+        "type": "debug",
+        "z": "c4ded3a41725e619",
+        "name": "debug 16",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 2180,
+        "y": 80,
+        "wires": []
+    },
+    {
+        "id": "8055184adf3246f9",
+        "type": "mqtt out",
+        "z": "c4ded3a41725e619",
+        "name": "",
+        "topic": "",
+        "qos": "0",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "b59e16e034cb5575",
+        "x": 2110,
+        "y": 120,
+        "wires": []
+    },
+    {
+        "id": "6d36d829eba76aef",
+        "type": "mqtt in",
+        "z": "c4ded3a41725e619",
+        "name": "",
+        "topic": "bms/room1/humidity",
+        "qos": "0",
+        "datatype": "auto-detect",
+        "broker": "b59e16e034cb5575",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 490,
+        "y": 1040,
+        "wires": [
+            [
+                "ede97b67e44b402e"
+            ]
+        ]
+    },
+    {
+        "id": "f5c7a8512d01a1f5",
+        "type": "debug",
+        "z": "c4ded3a41725e619",
+        "name": "debug 17",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1240,
+        "y": 980,
+        "wires": []
+    },
+    {
+        "id": "ede97b67e44b402e",
+        "type": "function",
+        "z": "c4ded3a41725e619",
+        "name": "Prepare Humidity",
+        "func": "const humidity = Number(msg.payload);\n\nif (!Number.isFinite(humidity) ||\n    humidity < 0 ||\n    humidity > 100) {\n    return null;\n}\n\nreturn {\n    payload: humidity,\n    topic: \"Relative Luftfeuchtigkeit\"\n};",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 810,
+        "y": 1020,
+        "wires": [
+            [
+                "f5c7a8512d01a1f5",
+                "5bda3da3e42099aa",
+                "02a34afb1cee153d"
+            ]
+        ]
+    },
+    {
+        "id": "5bda3da3e42099aa",
+        "type": "ui-text",
+        "z": "c4ded3a41725e619",
+        "group": "bb32eccd3d687711",
+        "order": 11,
+        "width": 6,
+        "height": 0,
+        "name": "",
+        "label": "Relative Luftfeuchtigkeit",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "style": false,
+        "font": "",
+        "fontSize": 16,
+        "color": "#717171",
+        "wrapText": false,
+        "className": "",
+        "value": "$string(payload) & \" %\"",
+        "valueType": "jsonata",
+        "x": 1250,
+        "y": 1040,
+        "wires": []
+    },
+    {
+        "id": "02a34afb1cee153d",
+        "type": "ui-chart",
+        "z": "c4ded3a41725e619",
+        "group": "bb32eccd3d687711",
+        "name": "",
+        "label": "Luftfeuchtigkeit – Verlauf",
+        "order": 2,
+        "chartType": "line",
+        "category": "topic",
+        "categoryType": "msg",
+        "xAxisLabel": "",
+        "xAxisProperty": "",
+        "xAxisPropertyType": "timestamp",
+        "xAxisType": "time",
+        "xAxisFormat": "",
+        "xAxisFormatType": "auto",
+        "xmin": "",
+        "xmax": "",
+        "yAxisLabel": "",
+        "yAxisProperty": "payload",
+        "yAxisPropertyType": "msg",
+        "ymin": "30",
+        "ymax": "70",
+        "bins": 10,
+        "action": "append",
+        "stackSeries": false,
+        "pointShape": "circle",
+        "pointRadius": 4,
+        "showLegend": true,
+        "removeOlder": 1,
+        "removeOlderUnit": "3600",
+        "removeOlderPoints": "",
+        "colors": [
+            "#0095ff",
+            "#ff0000",
+            "#ff7f0e",
+            "#2ca02c",
+            "#a347e1",
+            "#d62728",
+            "#ff9896",
+            "#9467bd",
+            "#c5b0d5"
+        ],
+        "textColor": [
+            "#666666"
+        ],
+        "textColorDefault": true,
+        "gridColor": [
+            "#e5e5e5"
+        ],
+        "gridColorDefault": true,
+        "width": 6,
+        "height": "6",
+        "className": "",
+        "interpolation": "linear",
+        "x": 1150,
+        "y": 1100,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "f5c973b82d874d93",
+        "type": "function",
+        "z": "c4ded3a41725e619",
+        "name": "Kühlventil Command",
+        "func": "// Virtual cooling valve command\nconst coolingDemand = msg.coolingDemand === true;\nconst fanCommand = msg.fanCommand === true;\nconst fanFeedback = msg.fanFeedback === true;\nconst dataTimeout = msg.dataTimeout === true;\n\nmsg.valveCommand =\n    !dataTimeout &&\n    coolingDemand &&\n    fanCommand &&\n    fanFeedback;\n\nmsg.valveStatus = msg.valveCommand\n    ? \"OFFEN\"\n    : \"GESCHLOSSEN\";\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1640,
+        "y": 200,
+        "wires": [
+            [
+                "1571275e0bdce14e",
+                "4454b34496917314",
+                "1ece4dc27ca41ba8"
+            ]
+        ]
+    },
+    {
+        "id": "1571275e0bdce14e",
+        "type": "debug",
+        "z": "c4ded3a41725e619",
+        "name": "debug 18",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1920,
+        "y": 200,
+        "wires": []
+    },
+    {
+        "id": "4454b34496917314",
+        "type": "ui-text",
+        "z": "c4ded3a41725e619",
+        "group": "bb32eccd3d687711",
+        "order": 8,
+        "width": 6,
+        "height": 0,
+        "name": "Kühlventil Status",
+        "label": "Kühlventil Status",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "style": false,
+        "font": "",
+        "fontSize": 16,
+        "color": "#717171",
+        "wrapText": false,
+        "className": "",
+        "value": "valveStatus",
+        "valueType": "msg",
+        "x": 2030,
+        "y": 240,
+        "wires": []
+    },
+    {
+        "id": "891daf16f2ea7a9d",
+        "type": "function",
+        "z": "c4ded3a41725e619",
+        "name": "Fan Command Runtime",
+        "func": "const now = Date.now();\n\n// Keep the accumulated total on disk.\nlet totalMs = context.get(\"totalMs\", \"file\") || 0;\n\n// Keep timing and command state in memory only.\nconst lastUpdate = context.get(\"lastUpdate\");\nconst previousCommand = context.get(\"previousCommand\");\n\nif (lastUpdate !== undefined && previousCommand === true) {\n    const elapsed = now - lastUpdate;\n\n    if (elapsed > 0 && elapsed <= 5000) {\n        totalMs += elapsed;\n    }\n}\n\ncontext.set(\"totalMs\", totalMs, \"file\");\ncontext.set(\"lastUpdate\", now);\ncontext.set(\"previousCommand\", msg.fanCommand === true);\n\nmsg.fanCommandSeconds = Math.floor(totalMs / 1000);\nmsg.fanCommandHours = totalMs / 3600000;\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1750,
+        "y": 420,
+        "wires": [
+            [
+                "d138fa3a8befb358",
+                "eb9ee023f9abed54",
+                "1e0775645e7d6c13"
+            ]
+        ]
+    },
+    {
+        "id": "d138fa3a8befb358",
+        "type": "debug",
+        "z": "c4ded3a41725e619",
+        "name": "debug 19",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 2100,
+        "y": 340,
+        "wires": []
+    },
+    {
+        "id": "eb9ee023f9abed54",
+        "type": "ui-text",
+        "z": "c4ded3a41725e619",
+        "group": "bb32eccd3d687711",
+        "order": 7,
+        "width": 5,
+        "height": 0,
+        "name": "Fan Command Runtime",
+        "label": "Fan Command Runtime",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "style": false,
+        "font": "",
+        "fontSize": 16,
+        "color": "#717171",
+        "wrapText": false,
+        "className": "",
+        "value": "$string(fanCommandSeconds) & \" s\"",
+        "valueType": "jsonata",
+        "x": 2110,
+        "y": 400,
+        "wires": []
+    },
+    {
+        "id": "7b1b5309ce8ae62c",
+        "type": "inject",
+        "z": "c4ded3a41725e619",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "ON",
+        "payloadType": "str",
+        "x": 1890,
+        "y": 320,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "665b7c636a0fcb61",
+        "type": "mqtt out",
+        "z": "c4ded3a41725e619",
+        "name": "MQTT Valve Command",
+        "topic": "bms/room1/valve/command",
+        "qos": "0",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "b59e16e034cb5575",
+        "x": 2270,
+        "y": 280,
+        "wires": []
+    },
+    {
+        "id": "1ece4dc27ca41ba8",
+        "type": "function",
+        "z": "c4ded3a41725e619",
+        "name": "Prepare MQTT Valve Command",
+        "func": "msg.payload = msg.valveCommand === true ? \"ON\" : \"OFF\";\nmsg.topic = \"bms/room1/valve/command\";\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1990,
+        "y": 280,
+        "wires": [
+            [
+                "665b7c636a0fcb61"
+            ]
+        ]
+    },
+    {
+        "id": "9db9c2226f4a1e49",
+        "type": "function",
+        "z": "c4ded3a41725e619",
+        "name": "Fan Alarm History",
+        "func": "// Process only messages containing an evaluated alarm state.\nif (typeof msg.alarm !== \"boolean\") {\n    return null;\n}\n\n// Restore the last three alarm records from disk.\nlet history = context.get(\"fanAlarmHistory\", \"file\");\n\nif (!Array.isArray(history)) {\n    history = [];\n}\n\nconst activeRecord = history.find(\n    record => record.status === \"AKTIV\"\n);\n\nconst timestamp = new Date().toLocaleString(\"de-DE\", {\n    timeZone: \"Europe/Berlin\"\n});\n\nlet changed = false;\n\nif (msg.alarm === true && !activeRecord) {\n    // New alarm: create one record only.\n    history.unshift({\n        raisedAt: timestamp,\n        clearedAt: \"\",\n        status: \"AKTIV\",\n        text: \"Lüfter: Keine Rückmeldung bei Einschaltbefehl\"\n    });\n\n    history = history.slice(0, 3);\n    changed = true;\n\n} else if (msg.alarm === false && activeRecord) {\n    // Alarm condition ended: update the existing record.\n    activeRecord.clearedAt = timestamp;\n    activeRecord.status = \"GEGANGEN\";\n    changed = true;\n}\n\n// Write only when an alarm appears or clears.\nif (changed) {\n    context.set(\"fanAlarmHistory\", history, \"file\");\n}\n\nmsg.payload = history;\nmsg.topic = \"Fan Alarm History\";\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1750,
+        "y": 540,
+        "wires": [
+            [
+                "34ad3a3ac87b2c55",
+                "1bf3b8ad13a1fc43"
+            ]
+        ]
+    },
+    {
+        "id": "34ad3a3ac87b2c55",
+        "type": "debug",
+        "z": "c4ded3a41725e619",
+        "name": "debug 20",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1980,
+        "y": 540,
+        "wires": []
+    },
+    {
+        "id": "1bf3b8ad13a1fc43",
+        "type": "ui-table",
+        "z": "c4ded3a41725e619",
+        "group": "bb32eccd3d687711",
+        "name": "Fan Alarm History",
+        "label": "Lüfter – letzte 3 Alarme",
+        "order": 3,
+        "width": "6",
+        "height": "8",
+        "maxrows": "3",
+        "passthru": false,
+        "autocols": false,
+        "showSearch": false,
+        "deselect": true,
+        "selectionType": "none",
+        "columns": [
+            {
+                "title": "Gekommen",
+                "key": "raisedAt",
+                "keyType": "key",
+                "type": "text",
+                "width": "",
+                "align": "start"
+            },
+            {
+                "title": "Gegangen",
+                "key": "clearedAt",
+                "keyType": "key",
+                "type": "text",
+                "width": "",
+                "align": "start"
+            },
+            {
+                "title": "Status",
+                "key": "status",
+                "keyType": "key",
+                "type": "text",
+                "width": "",
+                "align": "start"
+            },
+            {
+                "title": "Meldung",
+                "key": "text",
+                "keyType": "key",
+                "type": "text",
+                "width": "",
+                "align": "start"
+            }
+        ],
+        "mobileBreakpoint": "sm",
+        "mobileBreakpointType": "defaults",
+        "action": "replace",
+        "className": "",
+        "x": 2010,
+        "y": 600,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "1e0775645e7d6c13",
+        "type": "function",
+        "z": "c4ded3a41725e619",
+        "name": "Fan Energy Estimate",
+        "func": "// Assumed power for learning, not a measured value.\nconst assumedPowerW = 2;\nconst hours = msg.fanCommandHours;\n\nif (typeof hours !== \"number\" ||\n    !Number.isFinite(hours) || hours < 0) {\n    return null;\n}\n\nmsg.fanPowerAssumedW = assumedPowerW;\nmsg.fanEnergyEstimateWh = hours * assumedPowerW;\nmsg.payload = msg.fanEnergyEstimateWh.toFixed(3) + \" Wh\";\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 2020,
+        "y": 460,
+        "wires": [
+            [
+                "c5e3c0437acc59ec"
+            ]
+        ]
+    },
+    {
+        "id": "c5e3c0437acc59ec",
+        "type": "ui-text",
+        "z": "c4ded3a41725e619",
+        "group": "bb32eccd3d687711",
+        "order": 10,
+        "width": "6",
+        "height": "1",
+        "name": "Fan Energy Display",
+        "label": "Energie geschätzt (2 W angenommen)",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "style": false,
+        "font": "",
+        "fontSize": 16,
+        "color": "#717171",
+        "wrapText": false,
+        "className": "",
+        "value": "payload",
+        "valueType": "msg",
+        "x": 2270,
+        "y": 460,
+        "wires": []
+    },
+    {
+        "id": "4d8ae1abaa27718c",
+        "type": "modbus-client",
+        "name": "HVAC_Controller_Client",
+        "clienttype": "tcp",
+        "bufferCommands": true,
+        "stateLogEnabled": false,
+        "queueLogEnabled": false,
+        "failureLogEnabled": true,
+        "tcpHost": "127.0.0.1",
+        "tcpPort": "10502",
+        "tcpType": "DEFAULT",
+        "serialPort": "/dev/ttyUSB",
+        "serialType": "RTU-BUFFERD",
+        "serialBaudrate": 9600,
+        "serialDatabits": 8,
+        "serialStopbits": 1,
+        "serialParity": "none",
+        "serialConnectionDelay": 100,
+        "serialAsciiResponseStartDelimiter": "0x3A",
+        "unit_id": 1,
+        "commandDelay": 1,
+        "clientTimeout": 1000,
+        "reconnectOnTimeout": true,
+        "reconnectTimeout": 2000,
+        "parallelUnitIdsAllowed": true,
+        "showErrors": false,
+        "showWarnings": true,
+        "showLogs": true
+    },
+    {
+        "id": "bb32eccd3d687711",
+        "type": "ui-group",
+        "name": "Raumüberwachung",
+        "page": "c853b7a435a6c946",
+        "width": 12,
+        "height": 1,
+        "order": 1,
+        "showTitle": true,
+        "className": "",
+        "visible": true,
+        "disabled": "false",
+        "groupType": "default"
+    },
+    {
+        "id": "b59e16e034cb5575",
+        "type": "mqtt-broker",
+        "name": "",
+        "broker": "127.0.0.1",
+        "port": 1883,
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": 4,
+        "keepalive": 60,
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "c853b7a435a6c946",
+        "type": "ui-page",
+        "name": "Seite 1",
+        "ui": "8850dabd14292d58",
+        "path": "/page1",
+        "icon": "home",
+        "layout": "grid",
+        "theme": "1c4c310a46a7574b",
+        "breakpoints": [
+            {
+                "name": "Default",
+                "px": 0,
+                "cols": 3
+            },
+            {
+                "name": "Tablet",
+                "px": 576,
+                "cols": 6
+            },
+            {
+                "name": "Small Desktop",
+                "px": 768,
+                "cols": 9
+            },
+            {
+                "name": "Desktop",
+                "px": 1024,
+                "cols": 12
+            }
+        ],
+        "order": 1,
+        "className": "",
+        "visible": true,
+        "disabled": false
+    },
+    {
+        "id": "8850dabd14292d58",
+        "type": "ui-base",
+        "name": "Mein Dashboard",
+        "path": "/dashboard",
+        "appIcon": "",
+        "includeClientData": true,
+        "acceptsClientConfig": [
+            "ui-notification",
+            "ui-control"
+        ],
+        "showPathInSidebar": false,
+        "headerContent": "page",
+        "navigationStyle": "default",
+        "titleBarStyle": "default",
+        "showReconnectNotification": true,
+        "notificationDisplayTime": 1,
+        "showDisconnectNotification": true,
+        "allowInstall": false
+    },
+    {
+        "id": "1c4c310a46a7574b",
+        "type": "ui-theme",
+        "name": "Standardthema",
+        "colors": {
+            "surface": "#fcfcfd",
+            "primary": "#0d74ce",
+            "bgPage": "#f9f9fb",
+            "groupBg": "#ffffff",
+            "groupOutline": "#d9d9e0"
+        },
+        "sizes": {
+            "density": "default",
+            "pagePadding": "12px",
+            "groupGap": "12px",
+            "groupBorderRadius": "4px",
+            "widgetGap": "12px"
+        }
+    },
+    {
+        "id": "d2e3440ecabbe7bc",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-contrib-modbus": "5.60.2",
+            "@flowfuse/node-red-dashboard": "1.32.0"
+        }
+    }
+]
