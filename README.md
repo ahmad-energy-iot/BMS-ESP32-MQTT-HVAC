@@ -314,9 +314,10 @@ Realer ESP32-Aufbau mit DHT11, Relais, 5-V-Lüfter und LED zur Ventildarstellung
 Die grüne LED stellt ein Kühlventil dar. Die Lüfterrückmeldung wird in Node-RED simuliert.
 
 The green LED represents a cooling valve. Fan feedback is simulated in Node-RED.
-
-
-
+.
+.
+.
+.
 
 English:
 
