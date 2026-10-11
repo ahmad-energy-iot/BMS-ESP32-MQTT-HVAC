@@ -259,7 +259,6 @@ Diese Angaben beschreiben Tests am persönlichen Laboraufbau. Sie ersetzen keine
 
 ## Grenzen und mögliche Erweiterungen
 
-Dies ist ein persönlicher Labor- und Lernaufbau für einen Raum.
 
 Mögliche Erweiterungen:
 
@@ -553,8 +552,6 @@ The firmware template with empty credentials is not ready to run directly.
 Broker credentials and stored counter or alarm values are not included in the flow export. Context storage must also be configured separately.
 
 ## Practically Tested Scenarios
-
-The following scenarios were checked on the personal laboratory setup:
 
 - Temperature control with 24/22 °C hysteresis.
 - Real fan control over MQTT and a relay.
