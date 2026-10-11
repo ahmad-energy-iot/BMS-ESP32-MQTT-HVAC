@@ -271,6 +271,53 @@ Mögliche Erweiterungen:
 - Zusätzliche Dashboard-Gestaltung.
 
 ---
+## Projektbilder und Video / Screenshots and Video
+
+### Dashboard – Kühlbetrieb / Cooling operation
+
+Lüfterbefehl und simulierte Rückmeldung ON; das durch eine LED dargestellte Kühlventil ist freigegeben.
+
+![Dashboard im Kühlbetrieb](images/dashboard-cooling-on.png)
+
+### Dashboard – Alarmprüfung / Alarm test
+
+Einschaltbefehl ohne simulierte Lüfterrückmeldung: Der Alarm erscheint auch in der Historie.
+
+![Aktiver Lüfteralarm](images/dashboard-alarm.png)
+
+### Dashboard – Befehl OFF / Command OFF
+
+Lüfterbefehl OFF und Ventil geschlossen. Die simulierte Rückmeldung ist in dieser Aufnahme weiterhin ON.
+
+![Dashboard mit Lüfterbefehl OFF](images/dashboard-off.png)
+
+### Hardware
+
+Realer ESP32-Aufbau mit DHT11, Relais, 5-V-Lüfter und LED zur Ventildarstellung.
+
+![Hardware mit eingeschalteter Ventil-LED](images/hardware-on.jpg)
+
+[Hardware mit ausgeschalteter Ventil-LED ansehen](images/hardware-off.jpg)
+
+### Node-RED und ESP32-Testausgaben / Flow and test logs
+
+[Node-RED-Flow ansehen](images/node-red-flow.png)
+
+[ESP32: ON-Befehle bei 24 °C](images/esp32-command-on.png)
+
+[ESP32: OFF-Befehle bei 22 °C](images/esp32-command-off.png)
+
+### Hardware-Video / Hardware demonstration
+
+[▶ Hardware-Demonstration ansehen](videos/Add%20hardware%20demonstration%20video.mp4)
+
+Die grüne LED stellt ein Kühlventil dar. Die Lüfterrückmeldung wird in Node-RED simuliert.
+
+The green LED represents a cooling valve. Fan feedback is simulated in Node-RED.
+
+
+English:
+
 
 # BMS with ESP32, MQTT and Modbus TCP
 
